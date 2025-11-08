@@ -1,7 +1,27 @@
 [project]
 name = "what-to-wear"
 version = "0.1.0"
-description = "Add your description here"
+description = "An app to tell me what to wear."
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "platformdirs>=4.5.0",
+    "pytz>=2025.2",
+]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", # missing-trailing-comma
+    "PLR0913", # too-many-arguments
+    "RET504", # unnecessary-assign
+    "T201" # print
+]
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "single"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.4",
+]
