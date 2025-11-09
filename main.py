@@ -20,30 +20,34 @@ def main() -> None:
 
     state_file.parent.mkdir(parents=True, exist_ok=True)
 
-    non_office_shirts = (
-        'white', 'brown', 'dark green', 'black', 'pink',
-        'dark blue', 'beige', 'light blue', 'light green'
-    )
-
-    non_office_pants = ('dark blue', 'black', 'tan')
-
-    office_outfits = (
-        ('white', 'dark blue'),
-        ('black', 'tan'),
-        ('light blue', 'black'),
-        ('stripes', 'dark blue'),
-        ('dark blue', 'tan'),
-    )
+    closet = {
+        'non_office_shirts': (
+            'white', 'brown', 'dark green', 'black', 'pink',
+            'dark blue', 'beige', 'light blue', 'light green'
+        ),
+        'non_office_pants': ('dark blue', 'black', 'tan'),
+        'office_outfits': (
+            ('white', 'dark blue'),
+            ('black', 'tan'),
+            ('light blue', 'black'),
+            ('stripes', 'dark blue'),
+            ('dark blue', 'tan'),
+        )
+    }
 
     office_days = (1, 2, 3)
 
-    state = load_state(state_file, non_office_shirts, office_outfits)
+    try:
+        state = load_state(state_file)
+    except FileNotFoundError:
+        state = {'non_office_index': 0, 'office_index': 0}
+
+    state = load_state(state_file)
 
     today = datetime.now(pytz.timezone('America/New_York')).date()
 
     category, shirt, pants = get_today_outfit(
-        state, today, office_days,
-        non_office_shirts, non_office_pants, office_outfits
+        state, today, office_days, closet
     )
 
     save_state(state, state_file)
@@ -55,34 +59,20 @@ def main() -> None:
     print(f'{category}: {shirt.capitalize()} shirt with {pants} pants.')
 
 
-def load_state(
-        state_file: Path,
-        non_office_shirts: tuple[str, ...],
-        office_outfits: tuple[tuple[str, str], ...]
-) -> dict[str, int]:
+def load_state(state_file: Path) -> dict[str, int]:
     """Load the state file.
 
     Args:
         state_file (Path): Path to the state file.
-        non_office_shirts (tuple[str, ...]): A tuple of non-office
-            shirts.
-        office_outfits (tuple[tuple[str, str], ...]): A tuple of tuples
-            of office outfits.
 
     Returns:
         dict[str, int]: A dictionary describing state.
 
     """
-    if state_file.exists():
-        with state_file.open() as f:
-            return json.load(f)
+    with state_file.open() as f:
+        state = json.load(f)
 
-    state_initial = {
-        'non_office_index': non_office_shirts.index('beige') - 1,
-        'office_index': office_outfits.index(('stripes', 'dark blue')) - 1
-    }
-
-    return state_initial
+        return state
 
 
 def save_state(state: dict[str, int], state_file: Path) -> None:
@@ -101,9 +91,7 @@ def get_today_outfit(
         state: dict[str, int],
         today: date,
         office_days: tuple[int, ...],
-        non_office_shirts: tuple[str, ...],
-        non_office_pants: tuple[str, ...],
-        office_outfits: tuple[tuple[str, str], ...]
+        closet: dict[str, tuple[str, ...]]
 ) -> tuple[str, str, str]:
     """Get today's outfit.
 
@@ -111,17 +99,20 @@ def get_today_outfit(
         state (dict[str, int]): The current state.
         today (date): Today.
         office_days (tuple[int, ...]): A tuple of office day indices.
-        non_office_shirts (tuple[str, ...]): A tuple of non-office
-            shirts.
-        non_office_pants (tuple[str, ...]): A tuple of non-office pants.
-        office_outfits (tuple[tuple[str, str], ...]): A tuple of tuples
-            of office outfits.
+        closet (dict[str, tuple[str, ...]]): A dictionary describing
+            clothes in the closet.
 
     Returns:
         tuple[str, str, str]: The category, the shirt, and the pants.
 
     """
     state = state.copy()
+
+    office_outfits, non_office_shirts, non_office_pants = (
+        closet[key] for key in (
+            'office_outfits', 'non_office_shirts', 'non_office_pants'
+        )
+    )
 
     weekday = today.weekday()
 
