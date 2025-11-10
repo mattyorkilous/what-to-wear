@@ -1,12 +1,15 @@
 """Execute the What to Wear app."""
 from __future__ import annotations
 
+import calendar
 import json
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 import pytz
-from platformdirs import user_data_path
+import yaml
+from platformdirs import user_config_path, user_data_path
+from rich import print as rprint
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -14,52 +17,78 @@ if TYPE_CHECKING:
 
 def main() -> None:
     """Execute the What to Wear app."""
-    app_name = 'what_to_wear'
+    app_name = 'what-to-wear'
 
-    state_file = user_data_path(app_name) / 'rotation_state.json'
+    config_dir, data_dir = make_platform_dirs(app_name)
 
-    state_file.parent.mkdir(parents=True, exist_ok=True)
+    config_file = config_dir / 'config.yaml'
 
-    closet = {
-        'non_office_shirts': (
-            'white', 'brown', 'dark green', 'black', 'pink',
-            'dark blue', 'beige', 'light blue', 'light green'
-        ),
-        'non_office_pants': ('dark blue', 'black', 'tan'),
-        'office_outfits': (
-            ('white', 'dark blue'),
-            ('black', 'tan'),
-            ('light blue', 'black'),
-            ('stripes', 'dark blue'),
-            ('dark blue', 'tan'),
-        )
-    }
+    state_file = data_dir / 'rotation_state.json'
 
-    office_days = (1, 2, 3)
-
-    try:
-        state = load_state(state_file)
-    except FileNotFoundError:
-        state = {'non_office_index': 0, 'office_index': 0}
+    closet, office_days = load_config(config_file)
 
     state = load_state(state_file)
 
     today = datetime.now(pytz.timezone('America/New_York')).date()
 
-    category, shirt, pants = get_today_outfit(
-        state, today, office_days, closet
+    shirt, pants, state_updated = get_outfit_for(
+        when=today,
+        closet=closet,
+        office_days=office_days,
+        state=state,
     )
 
-    save_state(state, state_file)
+    save_state(state_updated, state_file)
 
-    today_name = today.strftime('%A')
-
-    print(f'Today is {today_name}.')
-
-    print(f'{category}: {shirt.capitalize()} shirt with {pants} pants.')
+    display_outfit(today, shirt, pants)
 
 
-def load_state(state_file: Path) -> dict[str, int]:
+def make_platform_dirs(app_name: str) -> tuple[Path, Path]:
+    """Make platform-specific directories for the app.
+
+    Args:
+        app_name (str): The name of the app.
+
+    """
+    config_dir = user_config_path(app_name)
+
+    data_dir = user_data_path(app_name)
+
+    for directory in (config_dir, data_dir):
+        directory.mkdir(exist_ok=True)
+
+    return config_dir, data_dir
+
+
+def load_config(config_file: Path) -> tuple[
+    dict[str, list[dict[str, str]]],
+    list[str]
+]:
+    """Load the configuration file.
+
+    Args:
+        config_file (Path): A path to the configuration file.
+
+    Raises:
+        FileNotFoundError: The configuration file is not found.
+
+    Returns:
+        tuple[ dict[str, list[dict[str, str]]], list[str] ]: The closet
+            dictionary and the office days list.
+
+    """
+    try:
+        with config_file.open() as f:
+            config = yaml.safe_load(f)
+    except FileNotFoundError as e:
+        msg = f'Config file not found at {config_file}. Please create it.'
+
+        raise FileNotFoundError(msg) from e
+
+    return config['closet'], config['office_days']
+
+
+def load_state(state_file: Path) -> dict[str, int | str]:
     """Load the state file.
 
     Args:
@@ -69,13 +98,22 @@ def load_state(state_file: Path) -> dict[str, int]:
         dict[str, int]: A dictionary describing state.
 
     """
-    with state_file.open() as f:
-        state = json.load(f)
+    try:
+        with state_file.open() as f:
+            state = json.load(f)
+
+            return state
+    except FileNotFoundError:
+        state = {
+            'last-worn-casual-outfits': 7,
+            'last-worn-work-outfits': 2,
+            'date-last-updated': ''
+        }
 
         return state
 
 
-def save_state(state: dict[str, int], state_file: Path) -> None:
+def save_state(state: dict[str, int | str], state_file: Path) -> None:
     """Save the current state.
 
     Args:
@@ -87,63 +125,82 @@ def save_state(state: dict[str, int], state_file: Path) -> None:
         json.dump(state, f)
 
 
-def get_today_outfit(
-        state: dict[str, int],
-        today: date,
-        office_days: tuple[int, ...],
-        closet: dict[str, tuple[str, ...]]
-) -> tuple[str, str, str]:
-    """Get today's outfit.
+def get_outfit_for(
+        when: date,
+        closet: dict[str, list[dict[str, str]]],
+        office_days: list[str],
+        state: dict[str, int | str]
+) -> tuple[str, str, dict[str, int | str]]:
+    """Get the outfit for `when`.
 
     Args:
+        when (date): The date for which to get the outfit.
+        closet (dict[str, list[dict[str, str]]]): A dictionary
+            describing clothes in the closet.
+        office_days (list[str]): A tuple of office day indices.
         state (dict[str, int]): The current state.
-        today (date): Today.
-        office_days (tuple[int, ...]): A tuple of office day indices.
-        closet (dict[str, tuple[str, ...]]): A dictionary describing
-            clothes in the closet.
 
     Returns:
-        tuple[str, str, str]: The category, the shirt, and the pants.
+        tuple[str, str]: The shirt and the pants.
 
     """
-    state = state.copy()
+    state_updated = state.copy()
 
-    office_outfits, non_office_shirts, non_office_pants = (
-        closet[key] for key in (
-            'office_outfits', 'non_office_shirts', 'non_office_pants'
-        )
-    )
-
-    weekday = today.weekday()
+    weekday = list(calendar.day_name)[when.weekday()]
 
     is_office_day = weekday in office_days
 
-    if is_office_day:
-        state['office_index'] = (
-            (state['office_index'] + 1) % len(office_outfits)
-        )
+    closet_section = 'work-outfits' if is_office_day else 'casual-outfits'
 
-        shirt, pants = office_outfits[state['office_index']]
+    key = f'last-worn-{closet_section}'
 
-        category = 'Office day outfit'
+    last_worn = int(state.get(key, -1))
 
-    else:
-        state['non_office_index'] = (
-            (state['non_office_index'] + 1) % len(non_office_shirts)
-        )
+    next_index = (last_worn + 1) % len(closet[closet_section])
 
-        shirt = non_office_shirts[state['non_office_index']]
+    stored_date = state.get('date-last-updated', '')
 
-        if shirt == 'black':
-            pants = 'light blue'
-        else:
-            pants = non_office_pants[
-                state['non_office_index'] % len(non_office_pants)
-            ]
+    today_iso = (
+        datetime.now(pytz.timezone('America/New_York')).date().isoformat()
+    )
 
-        category = 'Non-office outfit'
+    if stored_date == -1:
+        shirt, pants = closet[closet_section][next_index].values()
 
-    return category, shirt, pants
+        return shirt, pants, state_updated
+
+    if stored_date != today_iso:
+        state_updated[key] = next_index
+
+        state_updated['date-last-updated'] = today_iso
+
+        shirt, pants = closet[closet_section][next_index].values()
+
+        return shirt, pants, state_updated
+
+    current_index = int(
+        state.get(key, next_index)) % len(closet[closet_section]
+    )
+
+    shirt, pants = closet[closet_section][current_index].values()
+
+    return shirt, pants, state_updated
+
+
+def display_outfit(today: date, shirt: str, pants: str) -> None:
+    """Display the outfit for today.
+
+    Args:
+        today (date): Today.
+        shirt (str): The shirt to wear.
+        pants (str): The pants to wear.
+
+    """
+    today_name = today.strftime('%A')
+
+    rprint(f'Today is {today_name}.')
+
+    rprint(f'{shirt.capitalize()} shirt with {pants} pants.')
 
 
 if __name__ == '__main__':

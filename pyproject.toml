@@ -10,11 +10,28 @@ requires-python = ">=3.13"
 dependencies = [
     "platformdirs>=4.5.0",
     "pytz>=2025.2",
+    "pyyaml>=6.0.3",
+    "rich>=14.2.0",
 ]
 
 [project.scripts]
 what-to-wear = "what_to_wear:main"
 
+[tool.ruff.lint]
+select = ['ALL']
+ignore = [
+    'COM812', # missing-trailing-comma
+    'RET504', # unnecessary-assign
+]
+
+[tool.ruff.flake8-quotes]
+inline-quotes = "single"
+
 [build-system]
 requires = ["uv_build>=0.9.8,<0.10.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=7.1.0",
+]
