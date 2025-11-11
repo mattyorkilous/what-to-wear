@@ -12,10 +12,11 @@ dependencies = [
     "pytz>=2025.2",
     "pyyaml>=6.0.3",
     "rich>=14.2.0",
+    "typer>=0.20.0",
 ]
 
 [project.scripts]
-what-to-wear = "what_to_wear:main"
+what-to-wear = "what_to_wear.cli:app"
 
 [tool.ruff.lint]
 select = ['ALL']
@@ -26,6 +27,9 @@ ignore = [
 
 [tool.ruff.flake8-quotes]
 inline-quotes = "single"
+
+[tool.uv.build-backend]
+module-name = "what_to_wear"
 
 [build-system]
 requires = ["uv_build>=0.9.8,<0.10.0"]
