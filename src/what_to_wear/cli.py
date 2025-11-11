@@ -6,35 +6,27 @@ import pytz
 import typer
 
 from what_to_wear.closet import get_outfit_for
-from what_to_wear.config import load_config
 from what_to_wear.display import display_outfit
-from what_to_wear.state import load_state, save_state
-from what_to_wear.utils import (
-    check_is_office_day,
-    get_config_and_state_files,
-    get_today,
-)
+from what_to_wear.initialize import initialize
+from what_to_wear.state import save_state
+from what_to_wear.utils import check_is_office_day
 
 app = typer.Typer()
 
-@app.command()
-def show(when: str = typer.Argument(default=None)) -> None:
-    """Execute the What to Wear app.
+@app.callback(invoke_without_command=True)
+def show(
+    when: str = typer.Option(None, '--when', '-w', help='Date (YYYY-MM-DD)')
+) -> None:
+    """Display the outfit for the given date.
 
     Args:
         when (Optional[str]): The data for which to get the outfit. If
             None, use today.
 
     """
-    config_file, state_file = get_config_and_state_files(
+    state_file, closet, office_days, state, today = initialize(
         app_name='what-to-wear'
     )
-
-    closet, office_days = load_config(config_file)
-
-    state = load_state(state_file)
-
-    today = get_today()
 
     day = (
         datetime
@@ -65,15 +57,9 @@ def reset(shirt: str = typer.Argument(...)) -> None:
         shirt (str): The shirt to reset to.
 
     """
-    config_file, state_file = get_config_and_state_files(
+    state_file, closet, office_days, state, today = initialize(
         app_name='what-to-wear'
     )
-
-    closet, office_days = load_config(config_file)
-
-    state = load_state(state_file)
-
-    today = get_today()
 
     is_office_day = check_is_office_day(today, office_days)
 
