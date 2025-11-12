@@ -14,7 +14,7 @@ from what_to_wear.utils import check_is_office_day
 app = typer.Typer()
 
 @app.callback(invoke_without_command=True)
-def show(
+def main(
     when: str = typer.Option(None, '--when', '-w', help='Date (YYYY-MM-DD)')
 ) -> None:
     """Display the outfit for the given date.
@@ -74,6 +74,42 @@ def reset(shirt: str = typer.Argument(...)) -> None:
             break
 
     save_state(state, state_file)
+
+
+@app.command()
+def stay_home() -> None:
+    """Stay home and wear casual clothes even if it's an office day.
+
+    This command gets the next casual outfit and resets the work outfit
+    state to what it was before the main call that day.
+
+    """
+    state_file, closet, office_days, state, today = initialize(
+        app_name='what-to-wear'
+    )
+
+    is_office_day = check_is_office_day(today, office_days)
+
+    casual_outfits = closet.get('casual-outfits', [])
+
+    last_worn_casual = int(state.get('last-worn-casual-outfits', -1))
+
+    next_casual_index = (last_worn_casual + 1) % len(casual_outfits)
+
+    shirt, pants = casual_outfits[next_casual_index].values()
+
+    state['last-worn-casual-outfits'] = next_casual_index
+
+    state['date-last-updated'] = today.isoformat()
+
+    if is_office_day:
+        last_worn_work = int(state.get('last-worn-work-outfits', -1))
+
+        state['last-worn-work-outfits'] = last_worn_work - 1
+
+    save_state(state, state_file)
+
+    display_outfit(today, shirt, pants, is_office_day=False)
 
 
 if __name__ == '__main__':
