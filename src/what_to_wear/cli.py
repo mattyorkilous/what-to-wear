@@ -1,20 +1,17 @@
 """Execute the What to Wear app."""
 
-from datetime import datetime
-
-import pytz
 import typer
 
-from what_to_wear.closet import get_outfit_for
+from what_to_wear.closet import get_outfit_for, reset_state
 from what_to_wear.display import display_outfit
 from what_to_wear.initialize import initialize
-from what_to_wear.state import save_state
-from what_to_wear.utils import check_is_office_day
+from what_to_wear.io import save_state
+from what_to_wear.utils import check_is_office_day, get_today, str_to_date
 
 app = typer.Typer()
 
 @app.callback(invoke_without_command=True)
-def main(
+def show(
     when: str = typer.Option(None, '--when', '-w', help='Date (YYYY-MM-DD)')
 ) -> None:
     """Display the outfit for the given date.
@@ -24,56 +21,56 @@ def main(
             None, use today.
 
     """
-    state_file, closet, office_days, state, today = initialize(
+    closet, office_days, state, today, state_file = initialize(
         app_name='what-to-wear'
     )
 
-    day = (
-        datetime
-            .strptime(when, '%Y-%m-%d')
-            .astimezone(pytz.timezone('America/New_York'))
-            .date()
-        if when else today
-    )
+    day = str_to_date(when) if when else today
 
     shirt, pants, is_office_day, state_updated = get_outfit_for(
-        day=day,
-        closet=closet,
-        office_days=office_days,
-        state=state,
-        today=today
+        day,
+        closet,
+        office_days,
+        state,
+        today
     )
+
+    display_outfit(day, today, shirt, pants, is_office_day=is_office_day)
 
     save_state(state_updated, state_file)
 
-    display_outfit(today, shirt, pants, is_office_day=is_office_day)
-
 
 @app.command()
-def reset(shirt: str = typer.Argument(...)) -> None:
+def reset(
+    when: str = typer.Argument(get_today().strftime('%Y-%m-%d')),
+    shirt: str = typer.Argument(...)
+) -> None:
     """Reset the state file to the given shirt and pants.
 
     Args:
+        when (str): The date to reset. Default is today.
         shirt (str): The shirt to reset to.
 
     """
-    state_file, closet, office_days, state, today = initialize(
+    closet, office_days, state, today, state_file = initialize(
         app_name='what-to-wear'
     )
 
-    is_office_day = check_is_office_day(today, office_days)
+    day = str_to_date(when) if when else today
 
-    closet_section = 'work-outfits' if is_office_day else 'casual-outfits'
+    state_updated = reset_state(day, shirt, closet, office_days, state, today)
 
-    outfits = closet.get(closet_section, [])
+    save_state(state_updated, state_file)
 
-    for index, outfit in enumerate(outfits):
-        if outfit['shirt'] == shirt:
-            state[f'last-worn-{closet_section}'] = index - 1
+    shirt, pants, is_office_day, _ = get_outfit_for(
+        day,
+        closet,
+        office_days,
+        state_updated,
+        today
+    )
 
-            break
-
-    save_state(state, state_file)
+    display_outfit(day, today, shirt, pants, is_office_day=is_office_day)
 
 
 @app.command()
@@ -84,7 +81,7 @@ def stay_home() -> None:
     state to what it was before the main call that day.
 
     """
-    state_file, closet, office_days, state, today = initialize(
+    closet, office_days, state, today, state_file = initialize(
         app_name='what-to-wear'
     )
 
@@ -109,7 +106,7 @@ def stay_home() -> None:
 
     save_state(state, state_file)
 
-    display_outfit(today, shirt, pants, is_office_day=False)
+    display_outfit(today, today, shirt, pants, is_office_day=False)
 
 
 if __name__ == '__main__':

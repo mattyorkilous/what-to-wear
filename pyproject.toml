@@ -22,7 +22,8 @@ what-to-wear = "what_to_wear.cli:app"
 select = ['ALL']
 ignore = [
     'COM812', # missing-trailing-comma
-    'RET504', # unnecessary-assign
+    'PLR0913', # too-many-arguments
+    'RET504' # unnecessary-assign
 ]
 
 [tool.ruff.flake8-quotes]

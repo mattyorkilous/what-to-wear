@@ -1,15 +1,16 @@
 """Module for getting outfits from the closet."""
 
 from datetime import date
+from typing import Any
 
-from .utils import check_is_office_day
+from what_to_wear.utils import check_is_office_day
 
 
 def get_outfit_for(
         day: date,
         closet: dict[str, list[dict[str, str]]],
         office_days: list[str],
-        state: dict[str, int | str],
+        state: dict[str, Any],
         today: date
 ) -> tuple[str, str, bool, dict[str, int | str]]:
     """Get the outfit for `when`.
@@ -23,44 +24,122 @@ def get_outfit_for(
         today (date): Today's date.
 
     Returns:
-        tuple[str, str, bool, dict[str, int | str]]]: The shirt, pants,
+        tuple[str, str, bool, dict[str, Any]]]: The shirt, pants,
         whether it's an office day, and the updated state.
 
     """
-    state_updated = state.copy()
+    is_office_day, closet_section, outfits = _process_closet(
+        closet,
+        day,
+        office_days
+    )
 
+    current_key = f'current-{closet_section}'
+
+    current_index = state[current_key]
+
+    date_last_queried = state['date-last-queried']
+
+    reference_day = today if day > today else date_last_queried
+
+    delta = (day - reference_day).days
+
+    next_index = current_index+delta % len(outfits)
+
+    if day > today:
+        shirt, pants = _get_outfit_from_index(next_index, outfits)
+
+        return shirt, pants, is_office_day, state
+
+    if day > date_last_queried:
+        shirt, pants = _get_outfit_from_index(next_index, outfits)
+
+        state_updated = _update_state(state, current_key, next_index, today)
+
+        return shirt, pants, is_office_day, state_updated
+
+    if day == date_last_queried:
+        shirt, pants = _get_outfit_from_index(current_index, outfits)
+
+        return shirt, pants, is_office_day, state
+
+    msg = '`when` must be in the present or future.'
+
+    raise ValueError(msg)
+
+
+def reset_state(
+        day: date,
+        shirt: str,
+        closet: dict[str, list[dict[str, str]]],
+        office_days: list[str],
+        state: dict[str, Any],
+        today: date
+) -> dict[str, Any]:
+    """Reset the state to wear `shirt` on `day`.
+
+    Args:
+        day (date): The day to reset.
+        shirt (str): The shirt to which to reset.
+        closet (dict[str, list[dict[str, str]]]): The closet.
+        office_days (list[str]): The office days.
+        state (dict[str, Any]): The current state.
+        today (date): Today.
+
+    Returns:
+        dict[str, Any]: The updated state.
+
+    """
+    _, closet_section, outfits = _process_closet(
+        closet,
+        day,
+        office_days
+    )
+
+    current_key = f'current-{closet_section}'
+
+    shirts = [outfit['shirt'] for outfit in outfits]
+
+    new_index = shirts.index(shirt)
+
+    state_updated = _update_state(state, current_key, new_index, today)
+
+    return state_updated
+
+
+def _process_closet(
+        closet: dict[str, list[dict[str, str]]],
+        day: date,
+        office_days: list[str]
+) -> tuple[bool, str, list[dict[str, str]]]:
     is_office_day = check_is_office_day(day, office_days)
 
     closet_section = 'work-outfits' if is_office_day else 'casual-outfits'
 
-    key = f'last-worn-{closet_section}'
+    outfits = closet[closet_section]
 
-    last_worn = int(state.get(key, -1))
+    return is_office_day, closet_section, outfits
 
-    outfits = closet.get(closet_section, [])
 
-    next_index = (last_worn + 1) % len(outfits)
+def _get_outfit_from_index(
+        index: int,
+        outfits: list[dict[str, str]]
+) -> tuple[str, str]:
+    shirt, pants = outfits[index].values()
 
-    stored_date = state.get('date-last-updated', '')
+    return shirt, pants
 
-    today_iso = (today.isoformat())
 
-    if stored_date == '':
-        shirt, pants = outfits[next_index].values()
+def _update_state(
+        state: dict[str, Any],
+        current_key: str,
+        index: int,
+        today: date
+) -> dict[str, Any]:
+    state_updated = state.copy()
 
-        return shirt, pants, is_office_day, state_updated
+    state_updated[current_key] = index
 
-    if stored_date != today_iso:
-        state_updated[key] = next_index
+    state_updated['date-last-queried'] = today
 
-        state_updated['date-last-updated'] = today_iso
-
-        shirt, pants = outfits[next_index].values()
-
-        return shirt, pants, is_office_day, state_updated
-
-    current_index = int(state.get(key, next_index)) % len(outfits)
-
-    shirt, pants = outfits[current_index].values()
-
-    return shirt, pants, is_office_day, state_updated
+    return state_updated

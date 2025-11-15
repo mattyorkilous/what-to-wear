@@ -6,6 +6,7 @@ from rich import print as rprint
 
 
 def display_outfit(
+        day: date,
         today: date,
         shirt: str,
         pants: str,
@@ -15,15 +16,18 @@ def display_outfit(
     """Display the outfit for today.
 
     Args:
+        day (date): The day to display the outfit for.
         today (date): Today.
         shirt (str): The shirt to wear.
         is_office_day (bool): Whether it's an office day.
         pants (str): The pants to wear.
 
     """
-    today_name = today.strftime('%A')
+    prefix = 'Today is' if day == today else 'That day will be'
 
-    rprint(f'Today is {today_name}.')
+    day_name = day.strftime('%A')
+
+    rprint(f'{prefix} {day_name}.')
 
     outfit_type = 'work' if is_office_day else 'casual'
 
