@@ -1,5 +1,6 @@
 """Module for getting outfits from the closet."""
 
+from collections import Counter
 from datetime import date, timedelta
 from itertools import accumulate
 from typing import Any
@@ -180,12 +181,12 @@ def _calculate_next_index(
         initial=reference_day
     ))
 
-    day_type_counts = {
-        'work': sum([check_is_office_day(day, office_days) for day in days]),
-        'casual': sum(
-            [not check_is_office_day(day, office_days) for day in days]
-        )
-    }
+    day_types = [
+        'work' if check_is_office_day(day_, office_days) else 'casual'
+        for day_ in days
+    ]
+
+    day_type_counts = Counter(day_types)
 
     closet_section_delta = day_type_counts[closet_section] - 1
 
