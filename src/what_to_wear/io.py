@@ -30,8 +30,8 @@ def load_state(state_file: Path) -> dict[str, Any]:
             return state
     except FileNotFoundError:
         state = {
-            'current-casual-outfits': 0,
-            'current-work-outfits': 0,
+            'current-casual': 0,
+            'current-work': 0,
             'date-last-queried': get_today()
         }
 

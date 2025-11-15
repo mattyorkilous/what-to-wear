@@ -1,6 +1,7 @@
 """Module for getting outfits from the closet."""
 
-from datetime import date
+from datetime import date, timedelta
+from itertools import accumulate
 from typing import Any
 
 from what_to_wear.utils import check_is_office_day
@@ -28,23 +29,27 @@ def get_outfit_for(
         whether it's an office day, and the updated state.
 
     """
-    is_office_day, closet_section, outfits = _process_closet(
+    is_office_day, closet_section, outfits, current_key = _process_closet(
         closet,
         day,
         office_days
     )
 
-    current_key = f'current-{closet_section}'
+    current_index, date_last_queried, reference_day, delta = _process_state(
+        state,
+        current_key,
+        day,
+        today
+    )
 
-    current_index = state[current_key]
-
-    date_last_queried = state['date-last-queried']
-
-    reference_day = today if day > today else date_last_queried
-
-    delta = (day - reference_day).days
-
-    next_index = current_index+delta % len(outfits)
+    next_index = _calculate_next_index(
+        current_index,
+        reference_day,
+        delta,
+        len(outfits),
+        closet_section,
+        office_days
+    )
 
     if day > today:
         shirt, pants = _get_outfit_from_index(next_index, outfits)
@@ -90,17 +95,35 @@ def reset_state(
         dict[str, Any]: The updated state.
 
     """
-    _, closet_section, outfits = _process_closet(
+    _, closet_section, outfits, current_key = _process_closet(
         closet,
         day,
         office_days
     )
 
-    current_key = f'current-{closet_section}'
+    current_index, _, reference_day, delta = _process_state(
+        state,
+        current_key,
+        day,
+        today
+    )
+
+    n_outfits = len(outfits)
+
+    current_next_index = _calculate_next_index(
+        current_index,
+        reference_day,
+        delta,
+        n_outfits,
+        closet_section,
+        office_days
+    )
 
     shirts = [outfit['shirt'] for outfit in outfits]
 
-    new_index = shirts.index(shirt)
+    shirt_index = shirts.index(shirt)
+
+    new_index = (shirt_index - current_next_index) % n_outfits
 
     state_updated = _update_state(state, current_key, new_index, today)
 
@@ -111,14 +134,64 @@ def _process_closet(
         closet: dict[str, list[dict[str, str]]],
         day: date,
         office_days: list[str]
-) -> tuple[bool, str, list[dict[str, str]]]:
+) -> tuple[bool, str, list[dict[str, str]], str]:
     is_office_day = check_is_office_day(day, office_days)
 
-    closet_section = 'work-outfits' if is_office_day else 'casual-outfits'
+    closet_section = 'work' if is_office_day else 'casual'
 
     outfits = closet[closet_section]
 
-    return is_office_day, closet_section, outfits
+    current_key = f'current-{closet_section}'
+
+    return is_office_day, closet_section, outfits, current_key
+
+
+def _process_state(
+        state: dict[str, Any],
+        current_key: str,
+        day: date,
+        today: date
+) -> tuple[int, date, date, int]:
+    current_index = state[current_key]
+
+    date_last_queried = state['date-last-queried']
+
+    reference_day = today if day > today else date_last_queried
+
+    delta = (day - reference_day).days
+
+    return current_index, date_last_queried, reference_day, delta
+
+
+def _calculate_next_index(
+        current_index: int,
+        reference_day: date,
+        delta: int,
+        n_outfits: int,
+        closet_section: str,
+        office_days: list[str]
+) -> int:
+    if delta == 0:
+        return current_index
+
+    days = list(accumulate(
+        range(delta),
+        lambda last_day, _: last_day + timedelta(days=1),
+        initial=reference_day
+    ))
+
+    day_type_counts = {
+        'work': sum([check_is_office_day(day, office_days) for day in days]),
+        'casual': sum(
+            [not check_is_office_day(day, office_days) for day in days]
+        )
+    }
+
+    closet_section_delta = day_type_counts[closet_section] - 1
+
+    next_index = closet_section_delta % n_outfits
+
+    return next_index
 
 
 def _get_outfit_from_index(
