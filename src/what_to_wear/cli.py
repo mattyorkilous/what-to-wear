@@ -42,8 +42,8 @@ def show(
 
 @app.command()
 def reset(
-    when: str = typer.Argument(get_today().strftime('%Y-%m-%d')),
-    shirt: str = typer.Argument(...)
+    shirt: str = typer.Argument(...),
+    when: str = typer.Argument(get_today().strftime('%Y-%m-%d'))
 ) -> None:
     """Reset the state file to the given shirt and pants.
 
@@ -61,16 +61,6 @@ def reset(
     state_updated = reset_state(day, shirt, closet, office_days, state, today)
 
     save_state(state_updated, state_file)
-
-    shirt, pants, is_office_day, _ = get_outfit_for(
-        day,
-        closet,
-        office_days,
-        state_updated,
-        today
-    )
-
-    display_outfit(day, today, shirt, pants, is_office_day=is_office_day)
 
 
 @app.command()
