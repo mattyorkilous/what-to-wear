@@ -48,8 +48,8 @@ def reset(
     """Reset the state file to the given shirt and pants.
 
     Args:
-        when (str): The date to reset. Default is today.
         shirt (str): The shirt to reset to.
+        when (str): The date to reset. Default is today.
 
     """
     closet, office_days, state, today, state_file = initialize(

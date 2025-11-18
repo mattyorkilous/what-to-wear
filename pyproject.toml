@@ -29,9 +29,6 @@ ignore = [
 [tool.ruff.flake8-quotes]
 inline-quotes = "single"
 
-[tool.uv.build-backend]
-module-name = "what_to_wear"
-
 [build-system]
 requires = ["uv_build>=0.9.8,<0.10.0"]
 build-backend = "uv_build"
